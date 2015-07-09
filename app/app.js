@@ -41,14 +41,30 @@ require('./server/node/util.staticFiles.js')(__dirname+clientPath, APP_PATH, cli
 
 
 
-
+// load aws
 var AWS = require('aws-sdk'); 
-var s3 = new AWS.S3(); 
+
+
+// select credentials profile (if name not set to [default] ) 
+// http://docs.aws.amazon.com/AWSJavaScriptSDK/guide/node-configuring.html
+// 
+// 1) set in ~/.aws/credentials
+var credentials = new AWS.SharedIniFileCredentials({profile: 's3manager'});
+AWS.config.credentials = credentials;
+// or 2)
+// AWS.config.loadFromPath('./server/.aws/s3manager.json');
+// or 3) --- not recommended ---
+// AWS.config.update({accessKeyId: 'my-access-key-id', secretAccessKey: 'my-secret-access-key'});
+
+
+AWS.config.update({region: 'eu-west-1'});
+
 
 
 //////////// EXAMPLES: http://docs.aws.amazon.com/AWSJavaScriptSDK/guide/node-examples.html
 
 // List All of Your Buckets 
+var s3 = new AWS.S3(); 
 s3.listBuckets(function(err, data) {
   if (err) {
   	console.log("Error:", err);
@@ -108,6 +124,48 @@ var params = {
 };
 var url = s3.getSignedUrl('putObject', params);
 console.log("The URL is", url);
+
+
+
+//////////// EXAMPLES: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/STS.html#getFederationToken-property
+
+var bucket = "joernb";
+var tokenExpiresAfter = 900;
+var policy = {
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::"+bucket ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": ["arn:aws:s3:::"+bucket+"/*"]
+    }
+  ]
+};
+var params = {
+  Name: 'myAppUser', /* required */
+  DurationSeconds: tokenExpiresAfter,
+  Policy: policy
+};
+var sts = new AWS.STS({apiVersion: '2011-06-15'});
+sts.getFederationToken(params, function(err, data) {
+  if (err) {
+  	console.log(err, err.stack); // an error occurred
+  }
+  else {
+  	console.log(data);           // successful response
+  }
+});
+
+
 
 
 // +++++++++++++++ INIT SERVER ++++++++++++++++++
